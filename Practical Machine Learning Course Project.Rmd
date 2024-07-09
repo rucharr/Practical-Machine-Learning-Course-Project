@@ -1,0 +1,116 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Rucha Potkar"
+date: "2024-07-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+In this project, we have used data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of the project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The analysis here is based on two models decision tree and random forests. Further depending upon the best performing model (basis accuracy and out of sample error rate), we will be running our test set to predict the classe (5 levels) outcome for 20 cases.
+
+## Loading Data and Libraries
+
+```{r, echo=FALSE}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+library(randomForest)
+set.seed(1234)
+traincsv <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testcsv <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+dim(traincsv)
+dim(testcsv)
+```
+The comprises of 160 variables with training set having 19622 observations while the test set has 20 observations.
+
+## Cleaning the Data
+
+Removing unnecessary and near zero variance variables
+
+```{r, echo=TRUE}
+traincsv <- traincsv[,colMeans(is.na(traincsv)) < .9]
+traincsv <- traincsv[,-c(1:7)]
+nvz <- nearZeroVar(traincsv)
+traincsv <- traincsv[,-nvz]
+dim(traincsv)
+```
+We now split the training set into a validation and sub training set.
+
+```{r, echo=TRUE}
+inTrain <- createDataPartition(y=traincsv$classe, p=0.7, list=F)
+train <- traincsv[inTrain,]
+valid <- traincsv[-inTrain,]
+```
+
+## Testing the Models
+
+Set up control for training to use 3-fold cross validation.
+
+```{r,echo=TRUE}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+### Decision Tree
+
+```{r,echo=TRUE}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+
+# Prediction
+
+pred_trees <- predict(mod_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+
+### Random forests
+
+```{r,echo=TRUE}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+# Prediction
+
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+The best model is the Random Forest model, with 0.9952 accuracy and 0.0042481 out of sample error rate. We find that to be a sufficient enough model to use for our test sets.
+
+## Predictions on Test Set
+
+Running our test set to predict the classe (5 levels) outcome for 20 cases with the Random Forest model.
+
+```{r,echo=TRUE}
+pred <- predict(mod_rf, testcsv)
+print(pred)
+```
+
+## Appendix - Plots
+
+```{r,echo=TRUE}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+plot(mod_trees)
+plot(mod_rf)
+```
+
+
